@@ -1,6 +1,6 @@
 {
   "name": "mcp-terminal",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Terminal-based interactive client for Model Context Protocol (MCP) servers",
   "type": "module",
   "main": "dist/index.js",
