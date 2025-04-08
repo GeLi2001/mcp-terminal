@@ -41,7 +41,10 @@ export class McpConnection {
           {
             stdio: ["pipe", "pipe", "pipe"],
             shell: true,
-            env: serverConfig.env || undefined
+            env: {
+              ...process.env,
+              ...(serverConfig.env || {})
+            }
           }
         );
 
