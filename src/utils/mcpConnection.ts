@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import chalk from "chalk";
-import { ChildProcess, spawn } from "child_process";
+import { ChildProcess } from "child_process";
 import { configManager } from "../config/configManager.js";
 
 // Define interfaces for MCP tools and responses
@@ -34,38 +34,20 @@ export class McpConnection {
     try {
       // Check if it's a stdio-based server (has command)
       if (serverConfig.command && !serverConfig.url) {
-        // Spawn the process using command and args
-        this.childProcess = spawn(
-          serverConfig.command,
-          serverConfig.args || [],
-          {
-            stdio: ["pipe", "pipe", "pipe"],
-            shell: true,
-            env: {
-              ...process.env,
-              ...(serverConfig.env || {})
-            }
-          }
-        );
-
-        if (!this.childProcess.stdin || !this.childProcess.stdout) {
-          return {
-            success: false,
-            message: "Failed to create stdio streams for the child process"
-          };
-        }
-
-        this.childProcess.stderr?.on("data", (data) => {
-          console.error(
-            chalk.yellow(`[${this.serverName} stderr]:`),
-            data.toString()
-          );
-        });
-
-        // Create a stdio transport
+        // Create a stdio transport with environment variables
         const transport = new StdioClientTransport({
           command: serverConfig.command,
-          args: serverConfig.args
+          args: serverConfig.args || [],
+          env: {
+            // Filter out undefined values by converting process.env to a clean object
+            ...Object.entries(process.env).reduce((acc, [key, value]) => {
+              if (value !== undefined) {
+                acc[key] = value;
+              }
+              return acc;
+            }, {} as Record<string, string>),
+            ...(serverConfig.env || {})
+          }
         });
 
         // Create the client
@@ -85,6 +67,10 @@ export class McpConnection {
 
         // Connect to the transport
         await this.client.connect(transport);
+
+        // Store a reference to the underlying child process if needed for cleanup
+        // @ts-ignore - accessing private property
+        this.childProcess = transport._process;
 
         return {
           success: true,
