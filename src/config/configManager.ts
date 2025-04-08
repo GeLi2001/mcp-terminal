@@ -7,6 +7,7 @@ interface ServerConfig {
   command: string;
   args?: string[];
   url?: string;
+  env?: Record<string, string>;
   capabilities?: {
     resources?: boolean;
     tools?: boolean;
