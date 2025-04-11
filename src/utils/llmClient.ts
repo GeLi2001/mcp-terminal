@@ -4,6 +4,9 @@ import { McpConnection } from "./mcpConnection.js";
 // Load environment variables
 dotenv.config();
 
+// Supported LLM providers
+type LLMProvider = 'openai' | 'deepseek';
+
 // Define interfaces
 interface ConversationMessage {
   role: string;
@@ -71,13 +74,22 @@ export async function callLLM(
 ): Promise<string> {
   // console.log("mcpTools", mcpTools);
   try {
-    // Configure model and OpenAI API key
-    const apiKey = process.env.OPENAI_API_KEY;
+    // Determine provider and get API key
+    const provider: LLMProvider = process.env.LLM_PROVIDER as LLMProvider || 'openai';
+    const apiKey = provider === 'deepseek'
+      ? process.env.DEEPSEEK_API_KEY
+      : process.env.OPENAI_API_KEY;
+    const llmModel = provider === 'deepseek'
+      ? 'deepseek-chat'
+      : 'gpt-4o';
+
+    //console.log(`Using ${provider.toUpperCase()} with model ${llmModel}`);
+
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY environment variable is not set");
+      throw new Error(`${provider.toUpperCase()}_API_KEY environment variable is not set`);
     }
 
-    // Format messages for OpenAI API format
+    // Format messages for API
     const formattedMessages: OpenAIMessage[] = history.map((msg) => ({
       role:
         msg.role === "system" || msg.role === "user" || msg.role === "assistant"
@@ -91,14 +103,28 @@ export async function callLLM(
 
     // console.log("Tools passed to callLLM:", JSON.stringify(mcpTools, null, 2));
 
-    // Prepare request to OpenAI API
-    const requestBody: any = {
-      model: "gpt-4o",
-      messages: formattedMessages,
-      temperature: 0.7
-    };
+    // Prepare request based on provider
+    let apiUrl: string;
+    let requestBody: any;
 
-    // Add tools if available
+    if (provider === 'deepseek') {
+      apiUrl = "https://api.deepseek.com/v1/chat/completions";
+      requestBody = {
+        model: llmModel,
+        messages: formattedMessages,
+        temperature: 0.7
+      };
+    } else {
+      // OpenAI
+      apiUrl = "https://api.openai.com/v1/chat/completions";
+      requestBody = {
+        model: llmModel,
+        messages: formattedMessages,
+        temperature: 0.7
+      };
+    }
+
+    // Add tools if available (only for OpenAI)
     if (mcpTools.length > 0) {
       // Format tools to match OpenAI function calling format
       requestBody.tools = mcpTools.map((tool) => ({
@@ -117,7 +143,7 @@ export async function callLLM(
     }
 
     // Make the API call
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -129,11 +155,13 @@ export async function callLLM(
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(
-        `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
+        `${provider.toUpperCase()} API error: ${response.status} ${response.statusText} - ${errorText}`
       );
     }
 
-    const jsonResponse = (await response.json()) as OpenAIResponse;
+    const jsonResponse = provider === 'deepseek'
+      ? (await response.json()) as OpenAIResponse // DeepSeek response format is similar to OpenAI
+      : (await response.json()) as OpenAIResponse;
     // console.log("OpenAI response:", JSON.stringify(jsonResponse, null, 2));
 
     // Check if the response includes a tool call
@@ -228,7 +256,7 @@ export async function callLLM(
 
       // Get final response with tool results
       const finalResponse = await fetch(
-        "https://api.openai.com/v1/chat/completions",
+        apiUrl,
         {
           method: "POST",
           headers: {
@@ -236,7 +264,7 @@ export async function callLLM(
             Authorization: `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: llmModel,
             messages: updatedMessages,
             temperature: 0.7
           })
@@ -246,7 +274,7 @@ export async function callLLM(
       if (!finalResponse.ok) {
         const errorText = await finalResponse.text();
         throw new Error(
-          `OpenAI API error: ${finalResponse.status} ${finalResponse.statusText} - ${errorText}`
+          `${provider.toUpperCase()} API error: ${finalResponse.status} ${finalResponse.statusText} - ${errorText}`
         );
       }
 
