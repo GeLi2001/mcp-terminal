@@ -31,17 +31,20 @@ async function startChatSession() {
   console.log(chalk.blue("Starting chat session with LLM..."));
   console.log(chalk.yellow("Type 'exit' or 'quit' to end the session.\n"));
 
-  // Check OpenAI API key
-  const hasApiKey = checkOpenAIKey();
+  // Check LLM API key
+  const hasApiKey = checkLLMConfig();
   if (!hasApiKey) {
+    const provider = process.env.LLM_PROVIDER || 'openai';
+    const apiKeyVar = provider === 'deepseek' ? 'DEEPSEEK_API_KEY' : 'OPENAI_API_KEY';
+
     console.log(
       chalk.red(
-        "OpenAI API key not found. Please set the OPENAI_API_KEY environment variable."
+        `${provider.toUpperCase()} API key not found. Please set the ${apiKeyVar} environment variable.`
       )
     );
     console.log(
       chalk.yellow(
-        "You can create a .env file in the current directory or in your home directory with:\nOPENAI_API_KEY=your_api_key"
+        `You can create a .env file in the current directory or in your home directory with:\n${apiKeyVar}=your_api_key`
       )
     );
     rl.close();
@@ -178,10 +181,13 @@ async function startChatSession() {
   rl.close();
 }
 
-// Function to check if OpenAI API key is set
-function checkOpenAIKey(): boolean {
+// Function to check if LLM API key is set
+function checkLLMConfig(): boolean {
+  const provider: string = process.env.LLM_PROVIDER || 'openai';
+  const apiKeyVar = provider === 'deepseek' ? 'DEEPSEEK_API_KEY' : 'OPENAI_API_KEY';
+
   // Check environment variable
-  if (process.env.OPENAI_API_KEY) {
+  if (process.env[apiKeyVar]) {
     return true;
   }
 
@@ -191,8 +197,8 @@ function checkOpenAIKey(): boolean {
     if (fs.existsSync(envPath)) {
       const envContent = fs.readFileSync(envPath, "utf8");
       if (
-        envContent.includes("OPENAI_API_KEY=") &&
-        !envContent.includes("OPENAI_API_KEY=your_")
+        envContent.includes(`${apiKeyVar}=`) &&
+        !envContent.includes(`${apiKeyVar}=your_`)
       ) {
         return true;
       }
@@ -207,8 +213,8 @@ function checkOpenAIKey(): boolean {
     if (fs.existsSync(homeEnvPath)) {
       const envContent = fs.readFileSync(homeEnvPath, "utf8");
       if (
-        envContent.includes("OPENAI_API_KEY=") &&
-        !envContent.includes("OPENAI_API_KEY=your_")
+        envContent.includes(`${apiKeyVar}=`) &&
+        !envContent.includes(`${apiKeyVar}=your_`)
       ) {
         return true;
       }
